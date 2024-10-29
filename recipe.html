@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recipe Entry Form</title>
+    <style>
+        /* Basic Reset */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        /* Background */
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background: linear-gradient(135deg, #f7cac9, #92a8d1);
+            font-family: Arial, sans-serif;
+        }
+
+        /* Navbar */
+        .navbar {
+            width: 100%;
+            background-color: #ffffff;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem 2.5rem;
+            position: absolute;
+            top: 0;
+            left: 0;
+            text-align: left;
+        }
+
+        .navbar h1 {
+            font-family: 'Brush Script MT', cursive;
+            color: #555555;
+            font-size: 32px;
+        }
+
+        /* Form Container */
+        .form-container {
+            background-color: #ffffff;
+            padding: 2.5rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            width: 400px;
+            text-align: center;
+            margin-top: 100px; /* Space below navbar */
+        }
+
+        .form-container h2 {
+            margin-bottom: 1.5rem;
+            color: #555555;
+            font-size: 24px;
+        }
+
+        /* Form Fields */
+        .form-field {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            font-weight: bold;
+            color: #333333;
+            margin-bottom: 0.5rem;
+            text-align: left;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 1px solid #cccccc;
+            border-radius: 5px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            border-color: #92a8d1;
+        }
+
+        /* Submit Button */
+        .submit-btn {
+            background-color: #92a8d1;
+            color: white;
+            font-size: 18px;
+            padding: 12px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+            transition: background-color 0.3s;
+        }
+
+        .submit-btn:hover {
+            background-color: #7699c9;
+        }
+
+        #message {
+            margin-top: 1rem;
+            font-size: 16px;
+            color: green; /* Change to red for error messages */
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <!-- Include Chart.js -->
+</head>
+<body>
+    <!-- Navbar -->
+    <div class="navbar">
+        <h1>Recipe Book</h1>
+    </div>
+
+    <!-- Form Container -->
+    <div class="form-container">
+        <h2>Enter Recipe Details</h2>
+        <form id="recipe-form">
+            <div class="form-field">
+                <label for="recipe-number">Recipe Number</label>
+                <input type="text" id="recipe-number" name="recipe_number" placeholder="Enter recipe number" required aria-label="Recipe Number">
+            </div>
+            <div class="form-field">
+                <label for="recipe-name">Recipe Name</label>
+                <input type="text" id="recipe-name" name="recipe_name" placeholder="Enter recipe name" required aria-label="Recipe Name">
+            </div>
+            <button type="submit" class="submit-btn">Submit Recipe</button>
+        </form>
+        <div id="message"></div>
+        <!-- Button to visualize data -->
+        <button id="visualize-btn" class="submit-btn">Visualize Data</button>
+        <canvas id="myChart" style="display: none; margin-top: 20px;"></canvas>
+    </div>
+
+    <script>
+        // Handle form submission
+        document.getElementById('recipe-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const recipeNumber = document.getElementById('recipe-number').value;
+            const recipeName = document.getElementById('recipe-name').value;
+
+            try {
+                const response = await fetch('http://localhost:3019/api/recipe', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ recipe_number: recipeNumber, recipe_name: recipeName }),
+                });
+
+                if (response.ok) {
+                    document.getElementById('message').innerText = 'Recipe added successfully!';
+                    document.getElementById('recipe-form').reset();
+                } else {
+                    const error = await response.json();
+                    document.getElementById('message').innerText = `Error: ${error.message}`;
+                    document.getElementById('message').style.color = 'red'; // Change message color to red for errors
+                }
+            } catch (error) {
+                document.getElementById('message').innerText = 'Error connecting to the server.';
+                document.getElementById('message').style.color = 'red'; // Change message color to red for errors
+            }
+        });
+
+        // Handle visualize data button click
+        document.getElementById('visualize-btn').addEventListener('click', async () => {
+            try {
+                const response = await fetch('http://localhost:3019/api/recipe'); // Correct endpoint for fetching all recipes
+                if (!response.ok) throw new Error('Network response was not ok');
+
+                const recipes = await response.json();
+
+                // Prepare data for chart
+                const recipeMap = new Map();
+
+                recipes.forEach(recipe => {
+                    if (recipeMap.has(recipe.recipe_name)) {
+                        recipeMap.set(recipe.recipe_name, recipeMap.get(recipe.recipe_name) + parseInt(recipe.recipe_number)); // Sum up recipe numbers
+                    } else {
+                        recipeMap.set(recipe.recipe_name, parseInt(recipe.recipe_number)); // Initialize with current recipe number
+                    }
+                });
+
+                const uniqueRecipes = Array.from(recipeMap.keys()); // Get unique recipe names
+                const recipeNumbers = Array.from(recipeMap.values()); // Get corresponding recipe numbers
+
+                // Create the chart
+                const ctx = document.getElementById('myChart').getContext('2d');
+                const myChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: uniqueRecipes, // Unique recipe names
+                        datasets: [{
+                            label: 'Recipe Numbers',
+                            data: recipeNumbers, // Recipe numbers
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Recipe Number' // Y-axis label
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Recipe Names' // X-axis label
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // Display the chart
+                document.getElementById('myChart').style.display = 'block';
+            } catch (error) {
+                console.error('Error fetching recipes:', error);
+                alert('Error fetching recipes. Please try again.');
+            }
+        });
+    </script>
+</body>
+</html>
